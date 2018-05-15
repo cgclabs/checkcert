@@ -1,40 +1,26 @@
 package main
 
 import (
+	"bufio"
 	"crypto/tls"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 )
 
 func main() {
 
-	var urls = []string{
-		"google.com:443",
-		"expired.badssl.com:443",
-		"wrong.host.badssl.com:443",
-		"self-signed.badssl.com:443",
-		"untrusted-root.badssl.com:443",
-		"revoked.badssl.com:443",
-		"pinning-test.badssl.com:443",
-		"no-common-name.badssl.com:443",
-		"no-subject.badssl.com:443",
-		"incomplete-chain.badssl.com:443",
-		"sha1-intermediate.badssl.com:443",
-		"sha256.badssl.com:443",
-		"sha384.badssl.com:443",
-		"sha512.badssl.com:443",
-		"1000-sans.badssl.com:443",
-		"10000-sans.badssl.com:443",
-		"ecc256.badssl.com:443",
-		"ecc384.badssl.com:443",
-		"rsa2048.badssl.com:443",
-		"rsa8192.badssl.com:443",
+	urls := []string{}
+
+	urls, err := readLines("domains")
+	if err != nil {
+		log.Printf("Data file 'domains' not found")
 	}
 
 	for _, url := range urls {
-		checkURL(url)
+		checkURL(string(url))
 	}
 }
 
@@ -56,7 +42,22 @@ func checkURL(url string) {
 			}
 			issuer := strings.Join(cert.Issuer.Organization, ", ")
 			dur := cert.NotAfter.Sub(time.Now())
-			fmt.Printf("Certificate for %q from %q expires %s (%.0f days).\n", name, issuer, cert.NotAfter, dur.Hours()/24)
+			fmt.Printf("  Certificate for %q  from %q  expires %s  (%.0f days).\n\n", name, issuer, cert.NotAfter, dur.Hours()/24)
 		}
 	}
+}
+func readLines(path string) ([]string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	fmt.Print(lines)
+	return lines, scanner.Err()
 }
