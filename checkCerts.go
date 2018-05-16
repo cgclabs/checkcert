@@ -1,30 +1,46 @@
 package main
 
 import (
-	"bufio"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
-	"os"
 	"strings"
 	"time"
 )
 
+type Config struct {
+	Urls             []string
+	MMurl            string
+	MMkey            string
+	ExpireThreshhold float64
+}
+
+var config []Config
+var urls []string
+var MMurl string
+var MMkey string
+var ExpireThreshhold float64
+
 func main() {
 
-	urls := []string{}
-
-	urls, err := readLines("domains")
+	config, err := getConfig(".config")
 	if err != nil {
-		log.Printf("Data file 'domains' not found")
+		log.Printf("config file not found")
 	}
 
-	for _, url := range urls {
-		checkURL(string(url))
+	for _, info := range config {
+		for _, url := range info.Urls {
+			checkURL(string(url), float64(info.ExpireThreshhold))
+		}
+		MMkey = info.MMkey
+		MMurl = info.MMurl
 	}
 }
 
-func checkURL(url string) {
+// go to the url, pull down teh cert
+func checkURL(url string, expire float64) {
 	conn, err := tls.Dial("tcp", url, nil)
 
 	if err != nil {
@@ -48,23 +64,21 @@ func checkURL(url string) {
 			fmt.Printf("  Certificate for %q  from %q  expires %s  (%.0f days).\n\n", name, issuer, cert.NotAfter, dur.Hours()/24)
 		}
 		fmt.Print("+++ ")
-		if dur.Hours()/24 < 700 {
+		if dur.Hours()/24 < expire {
 			fmt.Print(issuer, "\n\n")
 		}
 	}
 }
-func readLines(path string) ([]string, error) {
-	file, err := os.Open(path)
+
+//
+func getConfig(path string) ([]Config, error) {
+	file, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
 
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
+	if err := json.Unmarshal(file, &config); err != nil {
+		log.Fatalf("JSON unmarshalling failed: %s", err)
 	}
-	fmt.Print(lines)
-	return lines, scanner.Err()
+	return config, err
 }
