@@ -33,16 +33,23 @@ func checkURL(url string) {
 	}
 	state := conn.ConnectionState()
 	defer conn.Close()
+	fmt.Print("---------------------")
 	fmt.Print("client: connected to: ", conn.RemoteAddr())
 
 	for _, cert := range state.PeerCertificates {
+		var issuer string
+		var dur time.Duration
 		for _, name := range cert.DNSNames {
 			if !strings.Contains(url, name) {
 				continue
 			}
-			issuer := strings.Join(cert.Issuer.Organization, ", ")
-			dur := cert.NotAfter.Sub(time.Now())
+			issuer = strings.Join(cert.Issuer.Organization, ", ")
+			dur = cert.NotAfter.Sub(time.Now())
 			fmt.Printf("  Certificate for %q  from %q  expires %s  (%.0f days).\n\n", name, issuer, cert.NotAfter, dur.Hours()/24)
+		}
+		fmt.Print("+++ ")
+		if dur.Hours()/24 < 700 {
+			fmt.Print(issuer, "\n\n")
 		}
 	}
 }
