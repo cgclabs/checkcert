@@ -6,51 +6,77 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"strings"
 	"time"
 )
 
 type Config struct {
-	Urls             []string
-	MMurl            string
-	MMkey            string
-	ExpireThreshhold float64
+	Urls            []string
+	MMurl           string
+	MMkey           string
+	ExpireThreshold float64
 }
 
-var config []Config
-var urls []string
-var MMurl string
-var MMkey string
-var ExpireThreshhold float64
+var (
+	config          []Config
+	urls            []string
+	MMurl           string
+	MMkey           string
+	ExpireThreshold float64
+	Info            *log.Logger
+	Error           *log.Logger
+)
+
+func init() {
+	// set up log file
+	fileHandle, err := os.OpenFile("/var/log/checkcert", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	//set output of logs to fileHandle
+	log.SetOutput(fileHandle)
+
+	Info = log.New(fileHandle,
+		"Log: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
+
+	Error = log.New(fileHandle,
+		"Error: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
+}
 
 func main() {
 
 	config, err := getConfig(".config")
 	if err != nil {
-		log.Printf("config file not found")
+		Error.Println("config file not found")
 	}
 
 	for _, info := range config {
 		for _, url := range info.Urls {
-			checkURL(string(url), float64(info.ExpireThreshhold))
+			checkURL(string(url), float64(info.ExpireThreshold))
 		}
 		MMkey = info.MMkey
 		MMurl = info.MMurl
 	}
+	//defer to close when you're done with it
+	//defer fileHandle.Close()
 }
 
-// go to the url, pull down teh cert
+// go to the url, pull down the cert
 func checkURL(url string, expire float64) {
 	conn, err := tls.Dial("tcp", url, nil)
 
 	if err != nil {
-		log.Printf("Unable to get %q - %s\n", url, err)
+		Error.Printf("Unable to get %q - %s\n", url, err)
 		return
 	}
 	state := conn.ConnectionState()
 	defer conn.Close()
-	fmt.Print("---------------------")
-	fmt.Print("client: connected to: ", conn.RemoteAddr())
+	Info.Println("---------------------")
+	Info.Println("client: connected to: ", conn.RemoteAddr())
 
 	for _, cert := range state.PeerCertificates {
 		var issuer string
@@ -61,11 +87,11 @@ func checkURL(url string, expire float64) {
 			}
 			issuer = strings.Join(cert.Issuer.Organization, ", ")
 			dur = cert.NotAfter.Sub(time.Now())
-			fmt.Printf("  Certificate for %q  from %q  expires %s  (%.0f days).\n\n", name, issuer, cert.NotAfter, dur.Hours()/24)
+			Info.Printf("  Certificate for %q  from %q  expires %s  (%.0f days).\n\n", name, issuer, cert.NotAfter, dur.Hours()/24)
 		}
 		fmt.Print("+++ ")
 		if dur.Hours()/24 < expire {
-			fmt.Print(issuer, "\n\n")
+			Info.Println(issuer, "\n\n")
 		}
 	}
 }
@@ -78,7 +104,7 @@ func getConfig(path string) ([]Config, error) {
 	}
 
 	if err := json.Unmarshal(file, &config); err != nil {
-		log.Fatalf("JSON unmarshalling failed: %s", err)
+		Error.Fatalf("JSON unmarshalling failed: %s", err)
 	}
 	return config, err
 }
