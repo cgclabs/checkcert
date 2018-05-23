@@ -2,7 +2,6 @@
     {
         "urls": [
             "google.com:443",
-            "work.containergraphics.com:443",
             "wrong.host.badssl.com:443",
             "self-signed.badssl.com:443",
             "untrusted-root.badssl.com:443",
