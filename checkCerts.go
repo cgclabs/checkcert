@@ -26,6 +26,7 @@ var (
 	ExpireThreshold float64
 	Info            *log.Logger
 	Error           *log.Logger
+	Warning         *log.Logger
 )
 
 func init() {
@@ -39,11 +40,15 @@ func init() {
 	log.SetOutput(fileHandle)
 
 	Info = log.New(fileHandle,
-		"Log: ",
+		"Info: ",
 		log.Ldate|log.Ltime|log.Lshortfile)
 
 	Error = log.New(fileHandle,
 		"Error: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
+
+	Warning = log.New(fileHandle,
+		"Warning: ",
 		log.Ldate|log.Ltime|log.Lshortfile)
 }
 
@@ -87,12 +92,14 @@ func checkURL(url string, expire float64) {
 			}
 			issuer = strings.Join(cert.Issuer.Organization, ", ")
 			dur = cert.NotAfter.Sub(time.Now())
-			Info.Printf("  Certificate for %q  from %q  expires %s  (%.0f days).\n\n", name, issuer, cert.NotAfter, dur.Hours()/24)
+			if dur.Hours()/24 < expire {
+				Warning.Printf("  Certificate for %q  from %q  expires %s  (%.0f days).\n\n", name, issuer, cert.NotAfter, dur.Hours()/24)
+				// TODO add logic to send mesage to Mattermost
+			} else {
+				Info.Printf("  Certificate for %q  from %q  expires %s  (%.0f days).\n\n", name, issuer, cert.NotAfter, dur.Hours()/24)
+			}
 		}
 		fmt.Print("+++ ")
-		if dur.Hours()/24 < expire {
-			Info.Println(issuer, "\n\n")
-		}
 	}
 }
 
