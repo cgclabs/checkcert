@@ -4,11 +4,13 @@ import (
     "crypto/tls"
     "encoding/json"
     "fmt"
+    "io"
     "io/ioutil"
     "log"
     "os"
     "strings"
     "time"
+    "flag"
 )
 
 type Config struct {
@@ -27,29 +29,39 @@ var (
     Info            *log.Logger
     Error           *log.Logger
     Warning         *log.Logger
+    outputHandle    io.Writer
+    err             error
 )
 
+var verboseFlag = flag.Bool("bool", false, "Verbose Mode")
+
 func init() {
-    // set up log file
-    fileHandle, err := os.OpenFile("/var/log/checkcert", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-    if err != nil {
-        log.Fatal(err)
+    flag.BoolVar(verboseFlag, "v", false, "Verbose Mode")
+    flag.Parse()
+
+    if *verboseFlag == true {
+        outputHandle = os.Stdout
+    } else {
+        outputHandle, err = os.OpenFile("/var/log/checkcert", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+        if err != nil {
+            log.Fatal(err)
+        }
     }
 
     //set output of logs to fileHandle
-    log.SetOutput(fileHandle)
+    log.SetOutput(outputHandle)
 
-    Info = log.New(fileHandle,
+    Info = log.New(outputHandle,
         "Info: ",
-        log.Ldate|log.Ltime|log.Lshortfile)
+        log.Ldate|log.Ltime)
 
-    Error = log.New(fileHandle,
+    Error = log.New(outputHandle,
         "Error: ",
-        log.Ldate|log.Ltime|log.Lshortfile)
+        log.Ldate|log.Ltime)
 
-    Warning = log.New(fileHandle,
+    Warning = log.New(outputHandle,
         "Warning: ",
-        log.Ldate|log.Ltime|log.Lshortfile)
+        log.Ldate|log.Ltime)
 }
 
 func main() {
@@ -72,9 +84,9 @@ func main() {
 
 // go to the url, pull down the cert
 func checkURL(url string, expire float64) {
-    conn, err := tls.Dial("tcp", url, nil)
+    conn, err1 := tls.Dial("tcp", url, nil)
 
-    if err != nil {
+    if err1 != nil {
         Error.Printf("Unable to get %q - %s\n", url, err)
         return
     }
@@ -99,11 +111,13 @@ func checkURL(url string, expire float64) {
                 Info.Printf("  Certificate for %q  from %q  expires %s  (%.0f days).\n\n", name, issuer, cert.NotAfter, dur.Hours()/24)
             }
         }
-        fmt.Print("+++ ")
+
+        if *verboseFlag != true {
+            fmt.Print("+++ ")
+        }
     }
 }
 
-//
 func getConfig(path string) ([]Config, error) {
     file, err := ioutil.ReadFile(path)
     if err != nil {
